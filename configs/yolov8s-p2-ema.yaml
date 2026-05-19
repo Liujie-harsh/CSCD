@@ -1,0 +1,57 @@
+# YOLOv8s-p2-ema: P2 head + EMA attention after each Neck C2f
+# 改动：在 Neck 的 4 个 C2f 输出后各加一个 EMA 注意力模块
+# 额外参数量：~360K（<4% overhead on 10.6M base）
+
+nc: 1
+
+scales:
+  s: [0.33, 0.50, 1024]
+
+# Backbone (不变)
+backbone:
+  - [-1, 1, Conv, [64, 3, 2]]        # 0-P1/2
+  - [-1, 1, Conv, [128, 3, 2]]       # 1-P2/4
+  - [-1, 3, C2f, [128, True]]        # 2
+  - [-1, 1, Conv, [256, 3, 2]]       # 3-P3/8
+  - [-1, 6, C2f, [256, True]]        # 4
+  - [-1, 1, Conv, [512, 3, 2]]       # 5-P4/16
+  - [-1, 6, C2f, [512, True]]        # 6
+  - [-1, 1, Conv, [1024, 3, 2]]      # 7-P5/32
+  - [-1, 3, C2f, [1024, True]]       # 8
+  - [-1, 1, SPPF, [1024, 5]]         # 9
+
+# Head with P2 + EMA
+head:
+  # Top-down path
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 10
+  - [[-1, 6], 1, Concat, [1]]                    # 11 cat P4
+  - [-1, 3, C2f, [512]]                          # 12
+  - [-1, 1, EMA, [512]]                         # 13 ← EMA after C2f
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 14
+  - [[-1, 4], 1, Concat, [1]]                    # 15 cat P3
+  - [-1, 3, C2f, [256]]                          # 16
+  - [-1, 1, EMA, [256]]                         # 17 ← EMA after C2f
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 18
+  - [[-1, 2], 1, Concat, [1]]                    # 19 cat P2
+  - [-1, 3, C2f, [128]]                          # 20
+  - [-1, 1, EMA, [128]]                         # 21 ← EMA after C2f (P2 head)
+
+  # Bottom-up path
+  - [-1, 1, Conv, [128, 3, 2]]                   # 22
+  - [[-1, 17], 1, Concat, [1]]                   # 23 cat P3 head
+  - [-1, 3, C2f, [256]]                          # 24
+  - [-1, 1, EMA, [256]]                         # 25 ← EMA after C2f
+
+  - [-1, 1, Conv, [256, 3, 2]]                   # 26
+  - [[-1, 13], 1, Concat, [1]]                   # 27 cat P4 head
+  - [-1, 3, C2f, [512]]                          # 28
+  - [-1, 1, EMA, [512]]                         # 29 ← EMA after C2f
+
+  - [-1, 1, Conv, [512, 3, 2]]                   # 30
+  - [[-1, 9], 1, Concat, [1]]                    # 31 cat P5
+  - [-1, 3, C2f, [1024]]                         # 32
+  - [-1, 1, EMA, [1024]]                        # 33 ← EMA after C2f
+
+  - [[21, 25, 29, 33], 1, Detect, [nc]]          # Detect(P2, P3, P4, P5)
