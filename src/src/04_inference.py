@@ -33,12 +33,13 @@ def main():
 
     from ultralytics import YOLO
     model = YOLO(args.weights)
+    model.fuse
     if args.device == "cpu":
         model.to("cpu")
 
     # 预热
     dummy = np.zeros((NORMAL_IMGSZ, NORMAL_IMGSZ, 3), dtype=np.uint8)
-    _ = model.predict(dummy, imgsz=NORMAL_IMGSZ, verbose=False, device=model.device)
+    _ = model.predict(dummy, imgsz=NORMAL_IMGSZ, verbose=False, half=True,device=model.device)
 
     data_root = Path(args.data_root)
     test_json = data_root / "test" / "test.json"

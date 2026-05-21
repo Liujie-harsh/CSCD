@@ -70,6 +70,7 @@ def main():
 
     from ultralytics import YOLO
     model = YOLO(args.weights)
+    model.fuse
     if args.device == "cpu":
         model.to("cpu")
 
